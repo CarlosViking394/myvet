@@ -5,17 +5,19 @@ import {
   StyleSheet, 
   TouchableOpacity, 
   Animated,
-  Easing
+  Easing,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useAI } from '../context/AIContext';
+import { useAI } from '../context/SafeAIProvider';
 
 const AIAssistant = () => {
-  const { message, isSpeaking } = useAI();
+  const { message, status, isListening, startListening, stopListening } = useAI();
   const mouthAnimation = useRef(new Animated.Value(0)).current;
+  const listeningAnimation = useRef(new Animated.Value(0)).current;
   
   useEffect(() => {
-    if (isSpeaking) {
+    if (status === 'speaking') {
       // Start mouth animation when speaking
       Animated.loop(
         Animated.sequence([
@@ -38,17 +40,67 @@ const AIAssistant = () => {
       mouthAnimation.stopAnimation();
       mouthAnimation.setValue(0);
     }
-  }, [isSpeaking]);
+  }, [status]);
+  
+  useEffect(() => {
+    if (isListening) {
+      // Start listening animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(listeningAnimation, {
+            toValue: 1,
+            duration: 600,
+            easing: Easing.linear,
+            useNativeDriver: false,
+          }),
+          Animated.timing(listeningAnimation, {
+            toValue: 0,
+            duration: 600,
+            easing: Easing.linear,
+            useNativeDriver: false,
+          }),
+        ])
+      ).start();
+    } else {
+      // Stop animation when not listening
+      listeningAnimation.stopAnimation();
+      listeningAnimation.setValue(0);
+    }
+  }, [isListening]);
   
   // Interpolate mouth height based on animation value
   const mouthHeight = mouthAnimation.interpolate({
     inputRange: [0, 1],
     outputRange: [5, 15],
   });
+  
+  // Interpolate mic button background color based on animation value
+  const micBackgroundColor = listeningAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['#47b4ea', '#f87171'],
+  });
+
+  // Handle mic button press
+  const handleMicPress = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  };
+
+  // Render loading indicator if processing
+  const renderStatusIndicator = () => {
+    if (status === 'processing') {
+      return <ActivityIndicator size="small" color="#47b4ea" style={styles.statusIndicator} />;
+    }
+    return null;
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.messageContainer}>
+        {renderStatusIndicator()}
         <Text style={styles.messageText}>{message}</Text>
       </View>
       
@@ -69,8 +121,20 @@ const AIAssistant = () => {
           />
         </View>
         
-        <TouchableOpacity style={styles.micButton}>
-          <Ionicons name="mic" size={24} color="white" />
+        <TouchableOpacity 
+          style={[
+            styles.micButton,
+            isListening && styles.micButtonActive
+          ]} 
+          onPress={handleMicPress}
+        >
+          <Animated.View 
+            style={[
+              styles.micButtonBackground,
+              { backgroundColor: micBackgroundColor }
+            ]}
+          />
+          <Ionicons name="mic" size={24} color="white" style={styles.micIcon} />
         </TouchableOpacity>
       </View>
     </View>
@@ -100,12 +164,19 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
+    minHeight: 70,
+    justifyContent: 'center',
   },
   messageText: {
     fontSize: 14,
     fontFamily: 'Manrope-Medium',
     color: '#1e293b',
     textAlign: 'center',
+  },
+  statusIndicator: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
   },
   assistantContainer: {
     flexDirection: 'row',
@@ -139,14 +210,27 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#47b4ea',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  micButtonBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#47b4ea',
+  },
+  micButtonActive: {
+    shadowColor: '#f87171',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  micIcon: {
+    zIndex: 1,
   },
 });
 

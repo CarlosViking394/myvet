@@ -13,16 +13,30 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePets } from '../context/PetContext';
 import { useVets } from '../context/VetContext';
-import { useAI } from '../context/AIContext';
+import { useAI } from '../context/SafeAIProvider';
 import TabHeader from '../components/TabHeader';
+import AIAssistantTest from '../components/AIAssistantTest';
+import { useNavigation } from '@react-navigation/native';
+import debugService from '../services/debug/DebugService';
 
 const HomeScreen = () => {
+  debugService.info('HomeScreen', 'Rendering HomeScreen');
+  
   const { pets } = usePets();
   const { vets } = useVets();
-  const { speak, addNewPet } = useAI();
+  const { speak, addNewPet, setNavigationRef } = useAI();
   const [activeTab, setActiveTab] = useState('My Pets');
+  const [showAITest, setShowAITest] = useState(false);
+  const navigation = useNavigation();
+  
+  // Set navigation ref for AI context
+  useEffect(() => {
+    debugService.debug('HomeScreen', 'Setting navigation ref in AI context');
+    setNavigationRef(navigation);
+  }, [navigation, setNavigationRef]);
   
   useEffect(() => {
+    debugService.debug('HomeScreen', 'Speaking welcome message');
     speak('Welcome to MyVet! Here you can manage your pets and find veterinarians.');
   }, []);
 
@@ -156,86 +170,107 @@ const HomeScreen = () => {
         onTabChange={setActiveTab}
       />
       
-      <ScrollView 
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {activeTab === 'My Pets' ? (
-          <>
-            <View style={styles.petsSection}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>My Pets</Text>
-                <TouchableOpacity onPress={addNewPet}>
-                  <Ionicons name="add-circle" size={24} color="#47b4ea" />
-                </TouchableOpacity>
+      {showAITest ? (
+        <View style={styles.aiTestContainer}>
+          <View style={styles.aiTestHeader}>
+            <Text style={styles.aiTestTitle}>AI Assistant Test</Text>
+            <TouchableOpacity onPress={() => setShowAITest(false)}>
+              <Ionicons name="close-circle" size={24} color="#47b4ea" />
+            </TouchableOpacity>
+          </View>
+          <AIAssistantTest />
+        </View>
+      ) : (
+        <ScrollView 
+          style={styles.content}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {activeTab === 'My Pets' ? (
+            <>
+              <View style={styles.petsSection}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>My Pets</Text>
+                  <TouchableOpacity onPress={addNewPet}>
+                    <Ionicons name="add-circle" size={24} color="#47b4ea" />
+                  </TouchableOpacity>
+                </View>
+                
+                {pets.length > 0 ? (
+                  <FlatList
+                    data={pets}
+                    renderItem={renderPetItem}
+                    keyExtractor={(item, index) => `pet-${index}`}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.petsContainer}
+                    style={styles.petsList}
+                  />
+                ) : (
+                  renderEmptyPetState()
+                )}
               </View>
               
-              {pets.length > 0 ? (
-                <FlatList
-                  data={pets}
-                  renderItem={renderPetItem}
-                  keyExtractor={(item, index) => `pet-${index}`}
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.petsContainer}
-                  style={styles.petsList}
-                />
-              ) : (
-                renderEmptyPetState()
+              {pets.length > 0 && (
+                <>
+                  {renderUpcomingAppointment()}
+                  {renderRecommendedVets()}
+                </>
               )}
-            </View>
-            
-            {pets.length > 0 && (
-              <>
-                {renderUpcomingAppointment()}
-                {renderRecommendedVets()}
-              </>
-            )}
-          </>
-        ) : (
-          <View style={styles.remindersContainer}>
-            <View style={styles.reminderCard}>
-              <View style={styles.reminderIconContainer}>
-                <Ionicons name="medkit-outline" size={24} color="#47b4ea" />
+            </>
+          ) : (
+            <View style={styles.remindersContainer}>
+              <View style={styles.reminderCard}>
+                <View style={styles.reminderIconContainer}>
+                  <Ionicons name="medkit-outline" size={24} color="#47b4ea" />
+                </View>
+                <View style={styles.reminderContent}>
+                  <Text style={styles.reminderTitle}>Medication Reminder</Text>
+                  <Text style={styles.reminderDescription}>
+                    Max's heartworm medication is due tomorrow
+                  </Text>
+                  <Text style={styles.reminderTime}>May 12, 2023</Text>
+                </View>
               </View>
-              <View style={styles.reminderContent}>
-                <Text style={styles.reminderTitle}>Medication Reminder</Text>
-                <Text style={styles.reminderDescription}>
-                  Max's heartworm medication is due tomorrow
-                </Text>
-                <Text style={styles.reminderTime}>May 12, 2023</Text>
+              
+              <View style={styles.reminderCard}>
+                <View style={styles.reminderIconContainer}>
+                  <Ionicons name="calendar-outline" size={24} color="#47b4ea" />
+                </View>
+                <View style={styles.reminderContent}>
+                  <Text style={styles.reminderTitle}>Upcoming Appointment</Text>
+                  <Text style={styles.reminderDescription}>
+                    Bella's annual check-up with Dr. Wilson
+                  </Text>
+                  <Text style={styles.reminderTime}>May 15, 2023 at 10:30 AM</Text>
+                </View>
               </View>
-            </View>
-            
-            <View style={styles.reminderCard}>
-              <View style={styles.reminderIconContainer}>
-                <Ionicons name="calendar-outline" size={24} color="#47b4ea" />
-              </View>
-              <View style={styles.reminderContent}>
-                <Text style={styles.reminderTitle}>Upcoming Appointment</Text>
-                <Text style={styles.reminderDescription}>
-                  Bella's annual check-up with Dr. Wilson
-                </Text>
-                <Text style={styles.reminderTime}>May 15, 2023 at 10:30 AM</Text>
-              </View>
-            </View>
-            
-            <View style={styles.reminderCard}>
-              <View style={styles.reminderIconContainer}>
-                <Ionicons name="fitness-outline" size={24} color="#47b4ea" />
-              </View>
-              <View style={styles.reminderContent}>
-                <Text style={styles.reminderTitle}>Vaccination Due</Text>
-                <Text style={styles.reminderDescription}>
-                  Charlie's rabies vaccination is due next week
-                </Text>
-                <Text style={styles.reminderTime}>May 20, 2023</Text>
+              
+              <View style={styles.reminderCard}>
+                <View style={styles.reminderIconContainer}>
+                  <Ionicons name="fitness-outline" size={24} color="#47b4ea" />
+                </View>
+                <View style={styles.reminderContent}>
+                  <Text style={styles.reminderTitle}>Vaccination Due</Text>
+                  <Text style={styles.reminderDescription}>
+                    Charlie's rabies vaccination is due next week
+                  </Text>
+                  <Text style={styles.reminderTime}>May 20, 2023</Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
-      </ScrollView>
+          )}
+          
+          {/* AI Test Button */}
+          <TouchableOpacity 
+            style={styles.aiTestButton}
+            onPress={() => setShowAITest(true)}
+          >
+            <Ionicons name="chatbubble-ellipses" size={20} color="white" />
+            <Text style={styles.aiTestButtonText}>Test AI Assistant</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 };
@@ -578,6 +613,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'Manrope-Medium',
     color: '#94a3b8',
+  },
+  aiTestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#47b4ea',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  aiTestButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  aiTestContainer: {
+    flex: 1,
+    backgroundColor: 'white',
+  },
+  aiTestHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  aiTestTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
   },
 });
 

@@ -1,10 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { AIAction, AIProcessingStatus } from '../services/ai/types';
 import aiService from '../services/ai/models/aiService';
 import speechService from '../services/ai/models/speechService';
 import conversationService from '../services/ai/models/conversationService';
 import { sanitizeInput } from '../services/ai/utils/aiUtils';
-import { useNavigation } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import debugService from '../services/debug/DebugService';
 
@@ -21,34 +20,31 @@ interface AIContextType {
   stopSpeaking: () => Promise<void>;
   clearConversation: () => void;
   addNewPet: () => void;
+  setNavigationRef: (ref: any) => void;
 }
 
 // Create the context
 const AIContext = createContext<AIContextType | undefined>(undefined);
 
 // Create the provider component
-export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  debugService.info('AIProvider', 'Initializing AIProvider');
+export const SafeAIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  debugService.info('SafeAIProvider', 'Initializing SafeAIProvider (no navigation hook)');
   
   const [status, setStatus] = useState<AIProcessingStatus>('idle');
   const [message, setMessage] = useState<string>('');
   const [isListening, setIsListening] = useState<boolean>(false);
   const [actions, setActions] = useState<AIAction[]>([]);
-  
-  // Wrap navigation hook in try-catch
-  let navigation: any = null;
-  try {
-    debugService.debug('AIProvider', 'Getting navigation from hook');
-    navigation = useNavigation();
-    debugService.debug('AIProvider', 'Navigation hook successful');
-  } catch (error) {
-    debugService.error('AIProvider', 'Error getting navigation', error);
-    // Navigation might not be available yet, that's ok
-  }
+  const navigationRef = useRef<any>(null);
+
+  // Function to set navigation ref
+  const setNavigationRef = useCallback((ref: any) => {
+    debugService.info('SafeAIProvider', 'Setting navigation ref');
+    navigationRef.current = ref;
+  }, []);
 
   // Handle speech status changes
   useEffect(() => {
-    debugService.info('AIProvider', 'Setting up speech service listeners');
+    debugService.info('SafeAIProvider', 'Setting up speech service listeners');
     
     let speakStartUnsubscribe: (() => void) | null = null;
     let speakEndUnsubscribe: (() => void) | null = null;
@@ -56,29 +52,29 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     // Wrap in try-catch to prevent crashes during initialization
     try {
       speakStartUnsubscribe = speechService.onSpeakStart(() => {
-        debugService.debug('AIProvider', 'Speech started');
+        debugService.debug('SafeAIProvider', 'Speech started');
         setStatus('speaking');
       });
       
       speakEndUnsubscribe = speechService.onSpeakEnd(() => {
-        debugService.debug('AIProvider', 'Speech ended');
+        debugService.debug('SafeAIProvider', 'Speech ended');
         setStatus('idle');
       });
       
-      debugService.info('AIProvider', 'Speech service listeners setup complete');
+      debugService.info('SafeAIProvider', 'Speech service listeners setup complete');
     } catch (error) {
-      debugService.error('AIProvider', 'Error setting up speech service listeners', error);
+      debugService.error('SafeAIProvider', 'Error setting up speech service listeners', error);
       console.error('Error setting up speech service listeners:', error);
       setStatus('idle');
     }
     
     return () => {
-      debugService.debug('AIProvider', 'Cleaning up speech service listeners');
+      debugService.debug('SafeAIProvider', 'Cleaning up speech service listeners');
       try {
         if (speakStartUnsubscribe) speakStartUnsubscribe();
         if (speakEndUnsubscribe) speakEndUnsubscribe();
       } catch (error) {
-        debugService.error('AIProvider', 'Error cleaning up speech service listeners', error);
+        debugService.error('SafeAIProvider', 'Error cleaning up speech service listeners', error);
         console.error('Error cleaning up speech service listeners:', error);
       }
     };
@@ -88,13 +84,13 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Send a message to the AI assistant
    */
   const sendMessage = useCallback(async (userMessage: string) => {
-    debugService.info('AIProvider', 'sendMessage called', { userMessage });
+    debugService.info('SafeAIProvider', 'sendMessage called', { userMessage });
     
     try {
       // Sanitize input
       const sanitizedInput = sanitizeInput(userMessage);
       if (!sanitizedInput) {
-        debugService.warn('AIProvider', 'Empty message after sanitization');
+        debugService.warn('SafeAIProvider', 'Empty message after sanitization');
         return;
       }
       
@@ -102,15 +98,15 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       setStatus('processing');
       
       // Add user message to conversation
-      debugService.debug('AIProvider', 'Adding user message to conversation');
+      debugService.debug('SafeAIProvider', 'Adding user message to conversation');
       conversationService.addMessage('user', sanitizedInput);
       
       // Get conversation history
       const messages = conversationService.getActiveConversationMessages();
-      debugService.debug('AIProvider', 'Retrieved conversation history', { messageCount: messages.length });
+      debugService.debug('SafeAIProvider', 'Retrieved conversation history', { messageCount: messages.length });
       
       // Generate AI response
-      debugService.debug('AIProvider', 'Generating AI response');
+      debugService.debug('SafeAIProvider', 'Generating AI response');
       const response = await aiService.generateResponse(messages);
       
       // Add AI response to conversation
@@ -122,11 +118,11 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       
       // Speak the response if not on web (to avoid issues)
       if (Platform.OS !== 'web') {
-        debugService.debug('AIProvider', 'Speaking response');
+        debugService.debug('SafeAIProvider', 'Speaking response');
         try {
           await speechService.speak(response.text);
         } catch (error) {
-          debugService.error('AIProvider', 'Speech error', error);
+          debugService.error('SafeAIProvider', 'Speech error', error);
           console.error('Speech error:', error);
           // Continue even if speech fails
         }
@@ -137,10 +133,10 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         handleActions(response.actions);
       }
       
-      debugService.info('AIProvider', 'Message processing complete');
+      debugService.info('SafeAIProvider', 'Message processing complete');
       return response;
     } catch (error) {
-      debugService.error('AIProvider', 'Error processing message', error);
+      debugService.error('SafeAIProvider', 'Error processing message', error);
       console.error('Error processing message:', error);
       setStatus('error');
       setMessage('Sorry, I encountered an error. Please try again.');
@@ -152,60 +148,62 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Handle AI actions
    */
   const handleActions = useCallback((actionList: AIAction[]) => {
-    debugService.debug('AIProvider', 'Handling AI actions', { actionCount: actionList.length });
+    debugService.debug('SafeAIProvider', 'Handling AI actions', { actionCount: actionList.length });
     
     try {
       actionList.forEach(action => {
-        debugService.debug('AIProvider', 'Processing action', { type: action.type });
+        debugService.debug('SafeAIProvider', 'Processing action', { type: action.type });
+        
+        const navigation = navigationRef.current;
         
         switch (action.type) {
           case 'NAVIGATE':
             if (navigation && action.payload && action.payload.screen) {
-              debugService.debug('AIProvider', 'Navigating', { screen: action.payload.screen });
+              debugService.debug('SafeAIProvider', 'Navigating', { screen: action.payload.screen });
               navigation.navigate(action.payload.screen, action.payload.params);
             } else {
-              debugService.warn('AIProvider', 'Navigation not available or missing screen');
+              debugService.warn('SafeAIProvider', 'Navigation not available or missing screen');
             }
             break;
           case 'ADD_PET':
             if (navigation) {
-              debugService.debug('AIProvider', 'Navigating to AddPet');
+              debugService.debug('SafeAIProvider', 'Navigating to AddPet');
               navigation.navigate('AddPet', action.payload);
             } else {
-              debugService.warn('AIProvider', 'Navigation not available for ADD_PET');
+              debugService.warn('SafeAIProvider', 'Navigation not available for ADD_PET');
             }
             break;
           case 'SCHEDULE_APPOINTMENT':
             // Handle appointment scheduling
-            debugService.debug('AIProvider', 'Schedule appointment action', action.payload);
+            debugService.debug('SafeAIProvider', 'Schedule appointment action', action.payload);
             console.log('Schedule appointment action:', action.payload);
             break;
           case 'SHOW_PET_INFO':
             // Show pet information
-            debugService.debug('AIProvider', 'Show pet info action', action.payload);
+            debugService.debug('SafeAIProvider', 'Show pet info action', action.payload);
             console.log('Show pet info action:', action.payload);
             break;
           case 'SHOW_REMINDER':
             // Show reminder
-            debugService.debug('AIProvider', 'Show reminder action', action.payload);
+            debugService.debug('SafeAIProvider', 'Show reminder action', action.payload);
             console.log('Show reminder action:', action.payload);
             break;
           default:
-            debugService.warn('AIProvider', 'Unknown action type', { type: action.type });
+            debugService.warn('SafeAIProvider', 'Unknown action type', { type: action.type });
             console.log('Unknown action type:', action.type);
         }
       });
     } catch (error) {
-      debugService.error('AIProvider', 'Error handling actions', error);
+      debugService.error('SafeAIProvider', 'Error handling actions', error);
       console.error('Error handling actions:', error);
     }
-  }, [navigation]);
+  }, []);
 
   /**
    * Start voice input
    */
   const startListening = useCallback(() => {
-    debugService.debug('AIProvider', 'startListening called');
+    debugService.debug('SafeAIProvider', 'startListening called');
     
     try {
       // In a real app, this would activate speech recognition
@@ -218,7 +216,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         sendMessage('Tell me about pet vaccinations');
       }, 2000);
     } catch (error) {
-      debugService.error('AIProvider', 'Error starting listening', error);
+      debugService.error('SafeAIProvider', 'Error starting listening', error);
       console.error('Error starting listening:', error);
       setIsListening(false);
       setStatus('idle');
@@ -229,14 +227,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Stop voice input
    */
   const stopListening = useCallback(() => {
-    debugService.debug('AIProvider', 'stopListening called');
+    debugService.debug('SafeAIProvider', 'stopListening called');
     
     try {
       // In a real app, this would stop speech recognition
       setIsListening(false);
       setStatus('idle');
     } catch (error) {
-      debugService.error('AIProvider', 'Error stopping listening', error);
+      debugService.error('SafeAIProvider', 'Error stopping listening', error);
       console.error('Error stopping listening:', error);
       setStatus('idle');
     }
@@ -246,7 +244,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Speak a message
    */
   const speak = useCallback(async (text: string) => {
-    debugService.debug('AIProvider', 'speak called', { text });
+    debugService.debug('SafeAIProvider', 'speak called', { text });
     
     try {
       if (Platform.OS === 'web') {
@@ -258,7 +256,7 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       setMessage(text);
       await speechService.speak(text);
     } catch (error) {
-      debugService.error('AIProvider', 'Error speaking', error);
+      debugService.error('SafeAIProvider', 'Error speaking', error);
       console.error('Error speaking:', error);
       // Don't update status on error, as it might already be set by the speech service
     }
@@ -268,14 +266,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Stop speaking
    */
   const stopSpeaking = useCallback(async () => {
-    debugService.debug('AIProvider', 'stopSpeaking called');
+    debugService.debug('SafeAIProvider', 'stopSpeaking called');
     
     try {
       if (Platform.OS !== 'web') {
         await speechService.stop();
       }
     } catch (error) {
-      debugService.error('AIProvider', 'Error stopping speech', error);
+      debugService.error('SafeAIProvider', 'Error stopping speech', error);
       console.error('Error stopping speech:', error);
       // Ensure status is reset if stop fails
       setStatus('idle');
@@ -286,14 +284,14 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Clear conversation
    */
   const clearConversation = useCallback(() => {
-    debugService.debug('AIProvider', 'clearConversation called');
+    debugService.debug('SafeAIProvider', 'clearConversation called');
     
     try {
       conversationService.clearActiveConversation();
       setMessage('');
       setActions([]);
     } catch (error) {
-      debugService.error('AIProvider', 'Error clearing conversation', error);
+      debugService.error('SafeAIProvider', 'Error clearing conversation', error);
       console.error('Error clearing conversation:', error);
     }
   }, []);
@@ -302,22 +300,23 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
    * Shortcut to add a new pet
    */
   const addNewPet = useCallback(() => {
-    debugService.debug('AIProvider', 'addNewPet called');
+    debugService.debug('SafeAIProvider', 'addNewPet called');
     
     try {
       speak("Let's add a new pet to your family! What type of pet would you like to add?");
+      const navigation = navigationRef.current;
       if (navigation) {
         navigation.navigate('AddPet');
       } else {
-        debugService.warn('AIProvider', 'Navigation not available for addNewPet');
+        debugService.warn('SafeAIProvider', 'Navigation not available for addNewPet');
       }
     } catch (error) {
-      debugService.error('AIProvider', 'Error navigating to AddPet', error);
+      debugService.error('SafeAIProvider', 'Error navigating to AddPet', error);
       console.error('Error navigating to AddPet:', error);
     }
-  }, [navigation, speak]);
+  }, [speak]);
 
-  debugService.info('AIProvider', 'Rendering AIProvider');
+  debugService.info('SafeAIProvider', 'Rendering SafeAIProvider');
 
   return (
     <AIContext.Provider value={{ 
@@ -331,7 +330,8 @@ export const AIProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
       stopListening,
       stopSpeaking,
       clearConversation,
-      addNewPet
+      addNewPet,
+      setNavigationRef
     }}>
       {children}
     </AIContext.Provider>
@@ -348,4 +348,4 @@ export const useAI = () => {
 };
 
 // Export the context
-export default AIContext;
+export default AIContext; 
