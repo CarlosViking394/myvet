@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useVets } from '../context/VetContext';
-import { useAI } from '../context/AIContext';
+import { useAI } from '../context/SafeAIProvider';
 
 const SearchScreen = () => {
   const { vets, findVetsBySpecialization } = useVets();

@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { usePets } from '../context/PetContext';
-import { useAI } from '../context/AIContext';
+import { useAI } from '../context/SafeAIProvider';
 
 const AddPetScreen = () => {
   const { addPet } = usePets();

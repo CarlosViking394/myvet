@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useAI } from '../context/AIContext';
+import { useAI } from '../context/SafeAIProvider';
 
 const ProfileScreen = () => {
   const { speak } = useAI();
